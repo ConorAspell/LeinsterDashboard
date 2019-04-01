@@ -58,10 +58,11 @@ def managePlayerPage(driver, name):#This method manages the iteration over a pla
         dropdown = Select(driver.find_element_by_xpath('//*[@id="sotic_wp_widget-34-content"]/div/div[1]/select')) 
         season = dropdown.options[i].text
         if season == '':
-            season = "2018-2019"
+            season = "2019"
         dropdown.select_by_index(i)
         list_of_seasons.append(handlePlayerPage(driver, season)) #appends each season to a player
     player_details = get_player_details(driver)
+    player['Season_Totals'] = get_total_season_details(driver)
     player['Player_Details'] = player_details
     player['Season_Details'] = list_of_seasons
     player['Player_Name'] = name
@@ -79,6 +80,41 @@ def get_player_details(driver):
     for i in range(0, int(len(header_list)), 2):
         player_details[header_list[i]] = header_list[i+1]
     return player_details
+
+def get_total_season_details(driver):
+    all_seasons=[]
+    button = driver.find_element_by_xpath('//*[@id="competition"]')
+    button.click()
+    table = driver.find_element_by_xpath('//*[@id="sotic_wp_widget-33-content"]/div/div/table')
+    text = table.text
+    text = text.split('\n')
+    header = text[0].split(' ')
+    body = text[1:]
+    for item in body:
+        season_details={}
+        components = item.split(' ')
+        if components[1].isnumeric():
+            for i in range(0, len(components)):
+                if i == 0:
+                    season_details['Overall_Total'] = components[i]
+                else:
+                    season_details[header[i]] = components[i]
+        else:
+            components[0:2] = [' '.join(components[0:2])]
+            if components[0][0].isnumeric():
+                for i in range(0, len(components)):
+                    season_details['Season'] = components[0]
+                    if i == 0:
+                        season_details['Season_Total'] = components[i]
+                    else:
+                        season_details[header[i]] = components[i]
+            
+        
+            for i in range(0, len(components)):
+                season_details[header[i]] = components[i]
+        all_seasons.append(season_details)
+    driver.back()
+    return all_seasons
 
 def handlePlayerPage(driver, season):
     time.sleep(2)
