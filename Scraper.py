@@ -4,7 +4,10 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.select import Select
 import json
 import time
-
+import args
+import sys
+import arrow
+from datetime import datetime
 
 """
 This scrapes Leinster Rugbys historical players, it uses the Selenium Python library to mimic a web page, traverse
@@ -159,14 +162,74 @@ def handlePlayerPage(driver, season):
             item.pop(len(item)-1)
         for i in range(0, len(item)):
             ind_game[headers[i]] = item[i]
-        all_games.append(ind_game)
+        all_games.append(ind_game.copy())
     season_details['Games'] = all_games
     season_details['Season'] = season
     return season_details
 
 def toJson(results):
-    with open('Leinster_result.json', 'w') as fp:
+    with open('Leinster_result1.json', 'w') as fp:
         json.dump(results, fp, ensure_ascii = False)
-global players
-players = {}
-managePlayerListPage()
+
+def get_highest_date():
+    player_date = {}
+    with open("Leinster_result.json") as f:
+        full_dict = json.loads(f.read())
+    for item in full_dict:
+        this_season = item['Season_Details']
+        name = item['Player_Name']
+        try:
+            games = this_season[0]['Games']
+        except:
+            print("player played no games")
+        most_recent_date = games[-1]['DATE']
+        if len(most_recent_date.split('/')[0]) < 2:
+            most_recent_date = "0"+most_recent_date 
+        most_recent_date_time = arrow.get(most_recent_date, 'DD/MM/YYYY')
+        player_date[name] = most_recent_date_time
+    return full_dict, player_date
+    
+
+def get_update(full_dict, date):
+    time.sleep(2) #Give page time to load
+    chrome_options = Options() #With Selenium you can set options
+    chrome_options.add_argument("--start-maximized") #The table gets messed up if the window is not maximised
+    #chrome_options.add_argument("--headless") #its faster when headless  
+    driver = webdriver.Chrome(options= chrome_options)
+    url = "https://www.leinsterrugby.ie/teams/historic-leinster-squads/"
+    driver.get(url)
+    players = []
+    dropdown = Select(driver.find_element_by_class_name('user-split-by')) #selects dropdown menu
+    temp =dropdown.options
+    result = []
+    dropdown = Select(driver.find_element_by_class_name('user-split-by'))
+    dropdown.select_by_index(0)
+    dropdown = Select(driver.find_element_by_class_name('user-split-by')) #prevents stale element exception
+    temp = driver.find_elements_by_xpath('//a[@href]')
+    text = {}
+    for item in temp:
+        text[item.text] = item.get_attribute("href")
+    for k, v in text.items():
+        if k not in players and 'historic-players' in v.split('/'): #Keeps a list of players who have already been processed
+            driver.get(v)
+            count = 0
+            for i in range(0, len(full_dict)):
+                if k == full_dict[i]['Player_Name']:
+                    count = i
+                    break
+            
+            full_dict[count]['Season_Details'][0] = handlePlayerPage(driver, '2019')
+            full_dict[count]['Season_Totals'] = get_total_season_details(driver)
+            driver.back()
+    result, players = handlePlayerListPage(driver, players, result)
+    toJson(result)
+
+
+    
+if __name__ == "__main__":
+
+    global players
+    players = {}
+    full_dict, date = get_highest_date()
+    get_update(full_dict, date)
+    managePlayerListPage()
